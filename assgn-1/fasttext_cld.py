@@ -150,19 +150,32 @@ class FastTextJAX:
         pos_grad = pos_error * output_vectors[context_idx]
         word_vectors = word_vectors.at[center_idx].add(pos_grad)
         
-        # Update subword vectors
-        for subword_idx in subword_indices:
-            subword_vectors = subword_vectors.at[subword_idx].add(pos_grad)
+        # Update subword vectors - vectorized
+        subword_vectors = subword_vectors.at[subword_indices].add(pos_grad)
         
-        # Update negative samples
-        for i, neg_idx in enumerate(neg_indices):
-            if neg_idx >= 0:  # Valid index
-                neg_error = neg_errors[i]
-                output_vectors = output_vectors.at[neg_idx].add(neg_error * center_vec)
-                neg_grad = neg_error * output_vectors[neg_idx]
-                word_vectors = word_vectors.at[center_idx].add(neg_grad)
-                for subword_idx in subword_indices:
-                    subword_vectors = subword_vectors.at[subword_idx].add(neg_grad)
+        # Update negative samples - fully vectorized approach
+        valid_mask = neg_indices >= 0
+        valid_neg_indices = jnp.where(valid_mask, neg_indices, 0)
+        
+        # Apply updates only where mask is valid
+        neg_updates = jnp.where(valid_mask[:, None], 
+                               neg_errors[:, None] * center_vec[None, :], 
+                               0.0)
+        
+        # Scatter add the updates to output vectors
+        output_vectors = output_vectors.at[valid_neg_indices].add(neg_updates)
+        
+        # Compute negative gradients for center word and subwords
+        valid_neg_grads = jnp.where(valid_mask[:, None],
+                                   neg_errors[:, None] * output_vectors[valid_neg_indices],
+                                   0.0)
+        total_neg_grad = jnp.sum(valid_neg_grads, axis=0)
+        
+        # Update word vector with negative gradients
+        word_vectors = word_vectors.at[center_idx].add(total_neg_grad)
+        
+        # Update subword vectors with negative gradients  
+        subword_vectors = subword_vectors.at[subword_indices].add(total_neg_grad)
         
         return word_vectors, subword_vectors, output_vectors
 
