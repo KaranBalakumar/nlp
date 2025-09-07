@@ -10,6 +10,7 @@ import pickle
 import math
 import os
 import time
+from tqdm import tqdm
 
 # Set JAX to use GPU if available
 print(f"JAX devices: {jax.devices()}")
@@ -315,6 +316,7 @@ class FastTextJAX:
         print("Starting JAX-accelerated training...")
 
         # Build vocabulary
+        print("Building vocabulary...")
         self.build_vocab(sentences)
 
         if len(self.word_vocab) == 0:
@@ -330,7 +332,7 @@ class FastTextJAX:
         # Pre-filter sentences
         print("Pre-filtering sentences...")
         filtered_sentences = []
-        for sentence in sentences:
+        for sentence in tqdm(sentences, desc="Filtering sentences"):
             filtered_words = [word for word in sentence if word in self.word_vocab]
             if len(filtered_words) > 1:
                 filtered_sentences.append(filtered_words)
@@ -339,13 +341,15 @@ class FastTextJAX:
 
         # Training loop
         for epoch in range(self.epochs):
-            print(f"Epoch {epoch + 1}/{self.epochs}")
+            print(f"\nEpoch {epoch + 1}/{self.epochs}")
             random.shuffle(filtered_sentences)
 
             words_in_epoch = 0
-            total_sentences = len(filtered_sentences)
             
-            for sentence_idx, sentence in enumerate(filtered_sentences):
+            # Progress bar for sentences in this epoch
+            sentence_pbar = tqdm(filtered_sentences, desc=f"Epoch {epoch+1}", unit="sent")
+            
+            for sentence in sentence_pbar:
                 for i, word in enumerate(sentence):
                     # Get context words
                     context_start = max(0, i - self.window)
@@ -357,13 +361,15 @@ class FastTextJAX:
                             self.train_skipgram_jax(word, context_words)
 
                     words_in_epoch += 1
+                
+                # Update progress bar description
+                if words_in_epoch % 1000 == 0:
+                    sentence_pbar.set_postfix({
+                        'words': f"{words_in_epoch:,}",
+                        'lr': f"{self.learning_rate:.6f}"
+                    })
 
-                # Progress reporting
-                if sentence_idx > 0 and sentence_idx % 500 == 0:
-                    percent = int((sentence_idx / total_sentences) * 100)
-                    print(f"\r  Progress: {percent}% ({sentence_idx}/{total_sentences})", end="")
-
-            print(f"\n  Processed {words_in_epoch} words in epoch {epoch + 1}")
+            print(f"  Processed {words_in_epoch:,} words in epoch {epoch + 1}")
 
             # Clear cache periodically
             if epoch % 2 == 0:
@@ -601,7 +607,7 @@ class FastTextJAXEvaluator:
 
         # Process into sentences
         sentences = []
-        for text in perplexity_texts[:max_sentences]:
+        for text in tqdm(perplexity_texts[:max_sentences], desc="Processing texts"):
             words = self.preprocess_text(text)
             if len(words) > 1:
                 sentences.append(words)
@@ -616,7 +622,8 @@ class FastTextJAXEvaluator:
         total_words = 0
         oov_words = 0
 
-        for sentence in sentences:
+        # Progress bar for perplexity calculation
+        for sentence in tqdm(sentences, desc="Computing perplexity"):
             for i, word in enumerate(sentence):
                 # Skip OOV words for fair comparison
                 if word not in self.model.word_vocab:
@@ -811,8 +818,8 @@ class FastTextJAXEvaluator:
             return {'accuracy': 0.0, 'macro_precision': 0.0, 'macro_recall': 0.0, 'macro_f1': 0.0}
 
         print("Converting texts to embeddings...")
-        X_train = jnp.stack([self.text_to_embedding(text) for text in train_texts])
-        X_test = jnp.stack([self.text_to_embedding(text) for text in test_texts])
+        X_train = jnp.stack([self.text_to_embedding(text) for text in tqdm(train_texts, desc="Training embeddings")])
+        X_test = jnp.stack([self.text_to_embedding(text) for text in tqdm(test_texts, desc="Test embeddings")])
 
         classifier = self.simple_classifier_train(X_train, train_labels)
         predictions = self.simple_classifier_predict(classifier, X_test)
@@ -1111,12 +1118,17 @@ def main_jax():
     trained_models = {}
     all_timings = {}
 
-    for config in configs:
+    # Use tqdm for overall progress
+    config_pbar = tqdm(configs, desc="Training models")
+    
+    for config in config_pbar:
         model_name = config['name']
         data_path = config['data_path']
         test_path = config['test_path']
         language = config['language']
         model_config = config['config']
+        
+        config_pbar.set_description(f"Processing {model_name}")
 
         if not os.path.exists(data_path):
             print(f"\nDataset {data_path} not found! Skipping {model_name}")
