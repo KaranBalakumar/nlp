@@ -302,7 +302,7 @@ def load_classification_data(filepath: str):
 def run_evaluation(language: str, train_file: str, test_file: str):
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
     with open(train_file, "r", encoding="utf-8") as f: text = f.read()
-    model = FastTextJAX(vector_size=100, window=5, min_count=5, epochs=5, batch_size=512)
+    model = FastTextJAX(vector_size=100, window=5, min_count=1, epochs=5, batch_size=512)
     train_sentences = [model.preprocess_text(line, lang=language) for line in text.split("\n") if line.strip()]
     train_sentences = [s for s in train_sentences if len(s) > 1]
     model.train(train_sentences)
