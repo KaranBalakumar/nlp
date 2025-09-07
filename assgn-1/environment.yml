@@ -1,15 +1,18 @@
 name: nlp
 channels:
   - conda-forge
+  - nvidia
   - defaults
 
 dependencies:
   - python=3.11
-  - numpy
+  - numpy<2
   - scikit-learn
   - pip
   - psutil
   - tqdm
+  - cudnn=8.9.7
+  - cuda-toolkit=12.5
   - pip:
     - --find-links https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
     - "jax[cuda12_pip]==0.4.20"
