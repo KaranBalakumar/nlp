@@ -224,13 +224,32 @@ class FastTextJAX:
 
     @classmethod
     def load(cls, filepath: str):
-        with open(filepath, "rb") as f: saved_data = pickle.load(f)
-        hp = saved_data['hyperparams']; config = saved_data['config']; numpy_params = saved_data['params']
+        """Loads model configuration and parameters using pickle."""
+        with open(filepath, "rb") as f:
+            saved_data = pickle.load(f)
+
+        hp = saved_data['hyperparams']
+        config = saved_data['config']
+        numpy_params = saved_data['params']
+
+        # Re-initialize the class with saved hyperparameters
         model = cls(vector_size=hp['vector_size'], window=hp['window'], min_count=hp['min_count'],
                     min_n=hp['min_n'], max_n=hp['max_n'])
-        model.word_vocab = config['word_vocab']; model.subword_vocab = config['subword_vocab']
-        model.huffman_paths = config['huffman_paths']; model.huffman_codes = config['huffman_codes']
+                    
+        ### THIS IS THE FIX ###
+        # Manually restore all the vocabulary and config data to the new model instance
+        model.word_vocab = config['word_vocab']
+        model.subword_vocab = config['subword_vocab']
+        model.huffman_paths = config['huffman_paths']
+        model.huffman_codes = config['huffman_codes']
+        
+        # We also need to restore these calculated values
+        model.num_internal = numpy_params['hs_vectors'].shape[0]
+        model.max_path_len = max(len(p) for p in model.huffman_paths.values()) if model.huffman_paths else 0
+
+        # Convert loaded NumPy arrays back to JAX arrays
         model.params = tree_map(jnp.asarray, numpy_params)
+        
         print(f"Model loaded from {filepath}")
         return model
 
@@ -248,8 +267,10 @@ def train_centroid_classifier(model: FastTextJAX, texts: List[str], labels: List
     embeddings = jnp.array([text_to_embedding(model, t, lang) for t in texts])
     label_indices = jnp.array([label_map[l] for l in labels])
     num_labels = len(unique_labels)
-    sum_vectors = jax.ops.segment_sum(embeddings, label_indices, num_segments=num_labels)
-    counts = jax.ops.segment_sum(jnp.ones(len(texts), dtype=jnp.int32), label_indices, num_segments=num_labels)
+    int_label_indices = label_indices.astype(jnp.int32)
+    sum_vectors = jax.ops.segment_sum(embeddings, int_label_indices, num_segments=num_labels)
+    counts = jax.ops.segment_sum(jnp.ones(len(texts), dtype=jnp.int32), int_label_indices, num_segments=num_labels)
+    
     mean_vectors = sum_vectors / jnp.maximum(counts, 1)[:, None]
     return {label: mean_vectors[i] for i, label in enumerate(unique_labels)}
 
