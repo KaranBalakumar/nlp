@@ -356,7 +356,7 @@ def main():
     print(f"JAX is running on: {jax.default_backend()}")
     run_evaluation(
         language='english',
-        train_file='datasets/english/english_2500.txt',
+        train_file='datasets/english/english_15000.txt',
         test_file='datasets/english/english_test.txt'
     )
     run_evaluation(
