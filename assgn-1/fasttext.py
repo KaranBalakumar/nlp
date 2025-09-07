@@ -201,7 +201,7 @@ class FastTextJAX:
         dots = jnp.dot(node_vecs, h)
         probs = jax.nn.sigmoid(dots)
         probs_for_path = jnp.where(code == 1, probs, 1.0 - probs)
-        return jnp.prod(probs_for_path)
+        return jnp.prod(probs_for_path) + 1e-9
 
     # ==================== SAVE/LOAD (FLAX-FREE) ====================
     def save(self, filepath: str):
@@ -269,7 +269,7 @@ def train_centroid_classifier(model: FastTextJAX, texts: List[str], labels: List
     label_indices = jnp.array([label_map[l] for l in labels])
     num_labels = len(unique_labels)
     sum_vectors = jax.ops.segment_sum(embeddings, label_indices, num_segments=num_labels)
-    counts = jax.ops.segment_sum(jnp.ones(len(texts)), label_indices, num_segments=num_labels)
+    counts = jax.ops.segment_sum(jnp.ones(len(texts), dtype=jnp.int32), label_indices, num_segments=num_labels)
     mean_vectors = sum_vectors / jnp.maximum(counts, 1)[:, None]
     return {label: mean_vectors[i] for i, label in enumerate(unique_labels)}
 

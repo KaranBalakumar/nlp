@@ -2,6 +2,7 @@ name: nlp
 channels:
   - conda-forge
   - nvidia
+  - pytorch
   - defaults
 
 dependencies:
@@ -12,14 +13,14 @@ dependencies:
   - psutil
   - tqdm
   - cudnn=8.9.7
-  - cuda-toolkit=12.5
   - libcusolver
   - libcufft
   - libcurand
   - pytorch
-  - pytorch-cuda=12.4
+  - pytorch-cuda=12.1
   - torchvision
   - torchaudio
+  - flax
   - pip:
     - --find-links https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
     - "jax[cuda12_pip]==0.4.20"
