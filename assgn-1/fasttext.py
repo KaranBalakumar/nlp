@@ -43,7 +43,6 @@ def build_huffman_tree(word_counts: Dict[str, int]) -> Tuple[Dict[str, List[int]
     if heap: traverse(heap[0], [], [])
     return paths, codes, len(internal_nodes)
 
-# ==================== JAX FastText Model (No Flax) ====================
 Params = Dict[str, jnp.ndarray]
 
 class FastTextJAX:
@@ -191,7 +190,11 @@ class FastTextJAX:
                 path = jnp.array(self.huffman_paths[word]); code = jnp.array(self.huffman_codes[word])
                 prob = prob_fn(self.params, context_sub_indices, path, code)
                 total_log_prob += jnp.log2(prob); word_count += 1
+        
+        # Diagnostic print to see if any words were processed
+        print(f"Total words processed for perplexity: {word_count}")
         if word_count == 0: return float('inf')
+        
         return jnp.power(2.0, -(total_log_prob / word_count))
 
     def _get_word_prob(self, params, context_sub_indices, path, code):
@@ -203,54 +206,31 @@ class FastTextJAX:
         probs_for_path = jnp.where(code == 1, probs, 1.0 - probs)
         return jnp.prod(probs_for_path) + 1e-9
 
-    # ==================== SAVE/LOAD (FLAX-FREE) ====================
     def save(self, filepath: str):
-        """Saves model configuration and parameters using pickle."""
-        # Convert JAX arrays to NumPy arrays for saving
         numpy_params = tree_map(np.asarray, self.params)
-        
-        # Combine all data into a single dictionary
         data_to_save = {
             'params': numpy_params,
             'config': {
-                'word_vocab': self.word_vocab,
-                'subword_vocab': self.subword_vocab,
-                'huffman_paths': self.huffman_paths,
-                'huffman_codes': self.huffman_codes,
+                'word_vocab': self.word_vocab, 'subword_vocab': self.subword_vocab,
+                'huffman_paths': self.huffman_paths, 'huffman_codes': self.huffman_codes,
             },
             'hyperparams': {
                 'vector_size': self.vector_size, 'window': self.window,
                 'min_count': self.min_count, 'min_n': self.min_n, 'max_n': self.max_n
             }
         }
-        
-        with open(filepath, "wb") as f:
-            pickle.dump(data_to_save, f)
+        with open(filepath, "wb") as f: pickle.dump(data_to_save, f)
         print(f"Model saved to {filepath}")
 
     @classmethod
     def load(cls, filepath: str):
-        """Loads model configuration and parameters using pickle."""
-        with open(filepath, "rb") as f:
-            saved_data = pickle.load(f)
-
-        hp = saved_data['hyperparams']
-        config = saved_data['config']
-        numpy_params = saved_data['params']
-
-        # Re-initialize class with saved hyperparameters
+        with open(filepath, "rb") as f: saved_data = pickle.load(f)
+        hp = saved_data['hyperparams']; config = saved_data['config']; numpy_params = saved_data['params']
         model = cls(vector_size=hp['vector_size'], window=hp['window'], min_count=hp['min_count'],
                     min_n=hp['min_n'], max_n=hp['max_n'])
-                    
-        # Load vocabularies and Huffman data
-        model.word_vocab = config['word_vocab']
-        model.subword_vocab = config['subword_vocab']
-        model.huffman_paths = config['huffman_paths']
-        model.huffman_codes = config['huffman_codes']
-        
-        # Convert loaded NumPy arrays back to JAX arrays
+        model.word_vocab = config['word_vocab']; model.subword_vocab = config['subword_vocab']
+        model.huffman_paths = config['huffman_paths']; model.huffman_codes = config['huffman_codes']
         model.params = tree_map(jnp.asarray, numpy_params)
-        
         print(f"Model loaded from {filepath}")
         return model
 
