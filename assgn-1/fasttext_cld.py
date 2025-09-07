@@ -892,14 +892,14 @@ def get_jax_configs():
             'test_path': 'datasets/english/english_test.txt',
             'language': 'english',
             'config': {
-                'vector_size': 64,
-                'window': 3,
-                'min_count': 3,
+                'vector_size': 32,
+                'window': 2,
+                'min_count': 5,
                 'min_n': 3,
-                'max_n': 4,
-                'epochs': 3,
+                'max_n': 3,
+                'epochs': 1,
                 'learning_rate': 0.1,
-                'negative': 5
+                'negative': 3
             }
         },
         {
