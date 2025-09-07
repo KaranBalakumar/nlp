@@ -868,8 +868,8 @@ def get_jax_configs():
         # English datasets
         {
             'name': 'English 2500 Model (JAX)',
-            'data_path': 'assgn-1/datasets/english/english_2500.txt',
-            'test_path': 'assgn-1/datasets/english/english_test.txt',
+            'data_path': 'datasets/english/english_2500.txt',
+            'test_path': 'datasets/english/english_test.txt',
             'language': 'english',
             'config': {
                 'vector_size': 64,
@@ -884,8 +884,8 @@ def get_jax_configs():
         },
         {
             'name': 'English 15000 Model (JAX)',
-            'data_path': 'english_15000.txt',
-            'test_path': 'english_test.txt',
+            'data_path': 'datasets/english/english_15000.txt',
+            'test_path': 'datasets/english/english_test.txt',
             'language': 'english',
             'config': {
                 'vector_size': 64,
@@ -900,8 +900,8 @@ def get_jax_configs():
         },
         {
             'name': 'English 30000 Model (JAX)',
-            'data_path': 'assgn-1/datasets/english/english_30000.txt',
-            'test_path': 'assgn-1/datasets/english/english_test.txt',
+            'data_path': 'datasets/english/english_30000.txt',
+            'test_path': 'datasets/english/english_test.txt',
             'language': 'english',
             'config': {
                 'vector_size': 64,
@@ -917,8 +917,8 @@ def get_jax_configs():
         # Hindi datasets
         {
             'name': 'Hindi 2500 Model (JAX)',
-            'data_path': 'assgn-1/datasets/hindi/hindi_2500.txt',
-            'test_path': 'assgn-1/datasets/hindi/hindi_test.txt',
+            'data_path': 'datasets/hindi/hindi_2500.txt',
+            'test_path': 'datasets/hindi/hindi_test.txt',
             'language': 'hindi',
             'config': {
                 'vector_size': 64,
@@ -933,8 +933,8 @@ def get_jax_configs():
         },
         {
             'name': 'Hindi 15000 Model (JAX)',
-            'data_path': 'assgn-1/datasets/hindi/hindi_15000.txt',
-            'test_path': 'assgn-1/datasets/hindi/hindi_test.txt',
+            'data_path': 'datasets/hindi/hindi_15000.txt',
+            'test_path': 'datasets/hindi/hindi_test.txt',
             'language': 'hindi',
             'config': {
                 'vector_size': 64,
@@ -949,8 +949,8 @@ def get_jax_configs():
         },
         {
             'name': 'Hindi 30000 Model (JAX)',
-            'data_path': 'assgn-1/datasets/hindi/hindi_30000.txt',
-            'test_path': 'assgn-1/datasets/hindi/hindi_test.txt',
+            'data_path': 'datasets/hindi/hindi_30000.txt',
+            'test_path': 'datasets/hindi/hindi_test.txt',
             'language': 'hindi',
             'config': {
                 'vector_size': 64,
