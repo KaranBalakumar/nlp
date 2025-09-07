@@ -10,7 +10,6 @@ import jax
 import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax.tree_util import tree_map
-from flax.serialization import to_bytes, from_bytes
 
 # Standard libraries
 from tqdm import tqdm
@@ -44,7 +43,7 @@ def build_huffman_tree(word_counts: Dict[str, int]) -> Tuple[Dict[str, List[int]
     if heap: traverse(heap[0], [], [])
     return paths, codes, len(internal_nodes)
 
-# ==================== JAX FastText Model with Evaluation ====================
+# ==================== JAX FastText Model (No Flax) ====================
 Params = Dict[str, jnp.ndarray]
 
 class FastTextJAX:
@@ -68,7 +67,6 @@ class FastTextJAX:
         if lang == 'english':
             return re.findall(r'\b[a-zA-Z]+\b', text.lower())
         elif lang == 'hindi':
-            # A simple regex for Hindi words (Devanagari script)
             return re.findall(r'[\u0900-\u097F]+', text)
         return text.split()
 
@@ -107,7 +105,6 @@ class FastTextJAX:
             'hs_vectors': jnp.zeros((self.num_internal, self.vector_size))
         }
 
-    # --- Training Logic (from scratch optimizer) ---
     def train(self, sentences: List[List[str]]):
         self.build_vocab(sentences)
         key = jax.random.PRNGKey(0)
@@ -121,7 +118,7 @@ class FastTextJAX:
         for epoch in range(self.epochs):
             total_loss, batch_count = 0.0, 0
             batch_generator = self._create_training_batches(sentences)
-            num_batches = int(np.ceil(sum(len(s) * 2 * self.window for s in sentences) / self.batch_size)) # Approx.
+            num_batches = int(np.ceil(sum(len(s) * 2 * self.window for s in sentences) / self.batch_size))
             pbar = tqdm(batch_generator, total=num_batches, desc=f"Epoch {epoch + 1}/{self.epochs}", leave=False)
             current_lr = self.learning_rate * (1.0 - (epoch / self.epochs))
             for batch in pbar:
@@ -133,7 +130,6 @@ class FastTextJAX:
         print("Training done.")
 
     def _create_training_batches(self, sentences: List[List[str]]):
-        # ... (Implementation is identical to the previous version, omitted for brevity)
         examples = []
         for sent in sentences:
             for i, word in enumerate(sent):
@@ -180,60 +176,81 @@ class FastTextJAX:
     def get_word_vector(params: Params, subword_indices: jnp.ndarray) -> jnp.ndarray:
         return params['subword_vectors'][subword_indices].sum(axis=0)
 
-    # ==================== INTRINSIC EVALUATION ====================
     def perplexity(self, sentences: List[List[str]]) -> float:
-        """Calculates perplexity on a test set."""
-        total_log_prob = 0.0
-        word_count = 0
-
-        # Pre-compile the probability calculation function
+        total_log_prob, word_count = 0.0, 0
         prob_fn = jit(self._get_word_prob)
-
         print("Calculating perplexity...")
         for sent in tqdm(sentences):
             for i, word in enumerate(sent):
-                if word not in self.word_vocab:
-                    continue
-                
-                start = max(0, i - self.window)
-                end = min(len(sent), i + self.window + 1)
-                context = [sent[j] for j in range(start, end) if i != j and sent[j] in self.word_vocab]
-                
-                if not context:
-                    continue
-
-                # Prepare data for the JIT function
+                if word not in self.word_vocab: continue
+                context = [sent[j] for j in range(max(0, i - self.window), min(len(sent), i + self.window + 1)) if i != j and sent[j] in self.word_vocab]
+                if not context: continue
                 context_sub_indices = [self.get_subwords(w) for w in context]
-                path = jnp.array(self.huffman_paths[word])
-                code = jnp.array(self.huffman_codes[word])
-
+                path = jnp.array(self.huffman_paths[word]); code = jnp.array(self.huffman_codes[word])
                 prob = prob_fn(self.params, context_sub_indices, path, code)
-                
-                total_log_prob += jnp.log2(prob)
-                word_count += 1
-        
-        if word_count == 0:
-            return float('inf')
-            
-        avg_log_likelihood = total_log_prob / word_count
-        perplexity = jnp.power(2.0, -avg_log_likelihood)
-        return perplexity
+                total_log_prob += jnp.log2(prob); word_count += 1
+        if word_count == 0: return float('inf')
+        return jnp.power(2.0, -(total_log_prob / word_count))
 
     def _get_word_prob(self, params, context_sub_indices, path, code):
-        """JIT-able function to calculate P(word|context) using HS."""
-        # Calculate context vector `h`
         context_vectors = [self.get_word_vector(params, jnp.array(subs)) for subs in context_sub_indices]
         h = jnp.mean(jnp.array(context_vectors), axis=0)
-        
-        # Calculate probability along the Huffman path
         node_vecs = params['hs_vectors'][path]
         dots = jnp.dot(node_vecs, h)
-        
-        # P = sigmoid(dot) if code=1, (1-sigmoid(dot)) if code=0
         probs = jax.nn.sigmoid(dots)
         probs_for_path = jnp.where(code == 1, probs, 1.0 - probs)
-        
         return jnp.prod(probs_for_path)
+
+    # ==================== SAVE/LOAD (FLAX-FREE) ====================
+    def save(self, filepath: str):
+        """Saves model configuration and parameters using pickle."""
+        # Convert JAX arrays to NumPy arrays for saving
+        numpy_params = tree_map(np.asarray, self.params)
+        
+        # Combine all data into a single dictionary
+        data_to_save = {
+            'params': numpy_params,
+            'config': {
+                'word_vocab': self.word_vocab,
+                'subword_vocab': self.subword_vocab,
+                'huffman_paths': self.huffman_paths,
+                'huffman_codes': self.huffman_codes,
+            },
+            'hyperparams': {
+                'vector_size': self.vector_size, 'window': self.window,
+                'min_count': self.min_count, 'min_n': self.min_n, 'max_n': self.max_n
+            }
+        }
+        
+        with open(filepath, "wb") as f:
+            pickle.dump(data_to_save, f)
+        print(f"Model saved to {filepath}")
+
+    @classmethod
+    def load(cls, filepath: str):
+        """Loads model configuration and parameters using pickle."""
+        with open(filepath, "rb") as f:
+            saved_data = pickle.load(f)
+
+        hp = saved_data['hyperparams']
+        config = saved_data['config']
+        numpy_params = saved_data['params']
+
+        # Re-initialize class with saved hyperparameters
+        model = cls(vector_size=hp['vector_size'], window=hp['window'], min_count=hp['min_count'],
+                    min_n=hp['min_n'], max_n=hp['max_n'])
+                    
+        # Load vocabularies and Huffman data
+        model.word_vocab = config['word_vocab']
+        model.subword_vocab = config['subword_vocab']
+        model.huffman_paths = config['huffman_paths']
+        model.huffman_codes = config['huffman_codes']
+        
+        # Convert loaded NumPy arrays back to JAX arrays
+        model.params = tree_map(jnp.asarray, numpy_params)
+        
+        print(f"Model loaded from {filepath}")
+        return model
 
 # ==================== EXTRINSIC EVALUATION HELPERS ====================
 def text_to_embedding(model: FastTextJAX, text: str, lang='english') -> jnp.ndarray:
@@ -280,68 +297,39 @@ def load_classification_data(filepath: str):
     return texts, labels
 
 def run_evaluation(language: str, train_file: str, test_file: str):
-    """Trains a FastText model and runs intrinsic/extrinsic evaluation."""
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
-    
-    # 1. Load and prepare data
     with open(train_file, "r", encoding="utf-8") as f: text = f.read()
-    
-    # Initialize model
     model = FastTextJAX(vector_size=100, window=5, min_count=5, epochs=5, batch_size=512)
-    
     train_sentences = [model.preprocess_text(line, lang=language) for line in text.split("\n") if line.strip()]
     train_sentences = [s for s in train_sentences if len(s) > 1]
-    
-    # 2. Train the model
     model.train(train_sentences)
-
-    # 3. Load test data
     test_texts, test_labels = load_classification_data(test_file)
     test_sentences = [model.preprocess_text(text, lang=language) for text in test_texts]
-
-    # 4. INTRINSIC EVALUATION
     print("\n--- Intrinsic Evaluation ---")
     perp = model.perplexity(test_sentences)
     print(f"Perplexity on test set: {perp:.4f}")
-
-    # 5. EXTRINSIC EVALUATION
     print("\n--- Extrinsic Evaluation ---")
     print("Training centroid classifier on test data...")
     centroids = train_centroid_classifier(model, test_texts, test_labels, lang=language)
-    
     print("Predicting labels...")
     text_embeddings = jnp.array([text_to_embedding(model, t, lang=language) for t in test_texts])
     predictions = predict_centroid(centroids, text_embeddings)
-    
     metrics = get_classification_metrics(test_labels, predictions)
     print("Classification Metrics:")
-    for key, val in metrics.items():
-        print(f"  {key:<18}: {val:.4f}")
+    for key, val in metrics.items(): print(f"  {key:<18}: {val:.4f}")
 
 def main():
     print(f"JAX is running on: {jax.default_backend()}")
-    
-    # Run for English
     run_evaluation(
         language='english',
         train_file='datasets/english/english_2500.txt',
         test_file='datasets/english/english_test.txt'
     )
-    
-    # Run for Hindi
     run_evaluation(
         language='hindi',
         train_file='datasets/hindi/hindi_50k.txt',
         test_file='datasets/hindi/hindi_test.txt'
     )
-
-    print(f"\n{'='*25}\n How to Compare Models \n{'='*25}")
-    print("To compare this FastText model with others (like Word2Vec or GloVe),")
-    print("you would run this same evaluation script for each model.")
-    print("1. Train each embedding model (FastText, Word2Vec, etc.) on the same training data.")
-    print("2. For each trained model, calculate its Perplexity (lower is better).")
-    print("3. For each trained model, calculate its classification metrics (higher is better).")
-    print("4. Compare the resulting scores across the models to determine which one performs best.")
 
 if __name__ == "__main__":
     main()
