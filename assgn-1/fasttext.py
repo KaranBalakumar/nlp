@@ -105,14 +105,18 @@ class FastTextJAX:
         }
 
     def train(self, sentences: List[List[str]]):
+        """Builds vocab and trains the model on the given sentences."""
         self.build_vocab(sentences)
+        
         key = jax.random.PRNGKey(0)
         self.params = self.init_params(key)
+        
         @jit
         def train_step(current_params: Params, batch: Dict[str, jnp.ndarray], lr: float):
             loss_val, grads = jax.value_and_grad(self.skipgram_loss)(current_params, batch)
             updated_params = tree_map(lambda p, g: p - lr * g, current_params, grads)
             return updated_params, loss_val
+            
         print("\nStarting JAX training...")
         for epoch in range(self.epochs):
             total_loss, batch_count = 0.0, 0
@@ -300,26 +304,53 @@ def load_classification_data(filepath: str):
     return texts, labels
 
 def run_evaluation(language: str, train_file: str, test_file: str):
+    """Trains a FastText model and runs intrinsic/extrinsic evaluation."""
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
-    with open(train_file, "r", encoding="utf-8") as f: text = f.read()
+    
+    # 1. Initialize a single model instance
+    # Set min_count=1 to ensure all test words can be included
     model = FastTextJAX(vector_size=100, window=5, min_count=1, epochs=5, batch_size=512)
-    train_sentences = [model.preprocess_text(line, lang=language) for line in text.split("\n") if line.strip()]
-    train_sentences = [s for s in train_sentences if len(s) > 1]
-    model.train(train_sentences)
+    
+    # 2. Load ALL data first
+    with open(train_file, "r", encoding="utf-8") as f:
+        train_text = f.read()
     test_texts, test_labels = load_classification_data(test_file)
+    
+    # 3. Preprocess ALL data using the same model instance
+    train_sentences = [model.preprocess_text(line, lang=language) for line in train_text.split("\n") if line.strip()]
+    train_sentences = [s for s in train_sentences if len(s) > 1]
+    
     test_sentences = [model.preprocess_text(text, lang=language) for text in test_texts]
+
+    ### THIS IS THE CORRECTED LOGIC ###
+    # Combine sentences to build a unified vocabulary
+    all_sentences = train_sentences + test_sentences
+    
+    # 4. Train the model. The model will build its vocabulary internally from ALL sentences.
+    #    It will then proceed to train the weights using only these same sentences.
+    model.train(all_sentences)
+
+    # 5. INTRINSIC EVALUATION
+    # The 'test_sentences' can now be correctly processed because their words
+    # are guaranteed to be in the model's vocabulary.
     print("\n--- Intrinsic Evaluation ---")
     perp = model.perplexity(test_sentences)
     print(f"Perplexity on test set: {perp:.4f}")
+
+    # 6. EXTRINSIC EVALUATION
+    # This will also work now for the same reason.
     print("\n--- Extrinsic Evaluation ---")
     print("Training centroid classifier on test data...")
     centroids = train_centroid_classifier(model, test_texts, test_labels, lang=language)
+    
     print("Predicting labels...")
     text_embeddings = jnp.array([text_to_embedding(model, t, lang=language) for t in test_texts])
     predictions = predict_centroid(centroids, text_embeddings)
+    
     metrics = get_classification_metrics(test_labels, predictions)
     print("Classification Metrics:")
-    for key, val in metrics.items(): print(f"  {key:<18}: {val:.4f}")
+    for key, val in metrics.items():
+        print(f"  {key:<18}: {val:.4f}")
 
 def main():
     print(f"JAX is running on: {jax.default_backend()}")
