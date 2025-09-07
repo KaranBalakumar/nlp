@@ -156,7 +156,9 @@ class FastTextJAX:
             yield {'center_subs': jnp.array(padded_subs), 'path': jnp.array(padded_paths), 'code': jnp.array(padded_codes)}
 
     def skipgram_loss(self, params: Params, batch: Dict[str, jnp.ndarray]) -> float:
-        losses = vmap(self._loss_for_one_example)(params, batch['center_subs'], batch['path'], batch['code'])
+        losses = vmap(self._loss_for_one_example, in_axes=(None, 0, 0, 0))(
+            params, batch['center_subs'], batch['path'], batch['code']
+        )
         return jnp.mean(losses)
 
     def _loss_for_one_example(self, params: Params, center_subs_indices, path_indices, code_bits):
