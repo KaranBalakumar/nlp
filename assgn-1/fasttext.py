@@ -5,6 +5,7 @@ import time
 from collections import Counter
 from typing import List, Dict, Tuple
 import math
+import os
 
 # JAX and related libraries
 import jax
@@ -418,14 +419,8 @@ def tokenize_text(text):
     return re.findall(r"\b\w+\b", str(text).lower())
 
 def run_evaluation(language: str, train_file: str, test_file: str, vector_size=200, window=2, min_count=5, min_n=3, max_n=4, epochs=50, batch_size=256, learning_rate=0.025):
-    # Save the model after evaluation
-    import os
-    def safe_name(path):
-        return os.path.splitext(os.path.basename(path))[0]
-    model_name = f"fasttext_{safe_name(train_file)}_{safe_name(test_file)}.pkl"
-    model.save(model_name)
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
-    
+
     # 1. Initialize a single model instance
     # Use extremely restrictive parameters like the notebook to avoid disk space issues
     model = FastTextJAX(vector_size=vector_size, window=window, min_count=min_count, min_n=min_n, max_n=max_n, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate)
@@ -491,6 +486,12 @@ def run_evaluation(language: str, train_file: str, test_file: str, vector_size=2
     print("Classification Metrics (centroid classifier):")
     for key, val in metrics.items():
         print(f"  {key:<18}: {val:.4f}")
+
+    # Save the model after training and evaluation
+    def safe_name(path):
+        return os.path.splitext(os.path.basename(path))[0]
+    model_name = f"fasttext_{safe_name(train_file)}_{safe_name(test_file)}.pkl"
+    model.save(model_name)
 
 def main():
     print(f"JAX is running on: {jax.default_backend()}")
