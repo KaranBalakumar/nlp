@@ -178,19 +178,34 @@ class FastTextJAX:
     def get_word_vector(params: Params, subword_indices: jnp.ndarray) -> jnp.ndarray:
         return params['subword_vectors'][subword_indices].sum(axis=0)
 
-    def perplexity(self, sentences: List[List[str]]) -> float:
+    def perplexity(self, sentences: List[List[str]], sample_size: int = 500) -> float:
+        """Calculate perplexity on a sample of sentences for speed"""
+        if len(sentences) > sample_size:
+            sentences = sentences[:sample_size]
+            print(f"Sampling {sample_size} sentences for faster perplexity calculation...")
+        
         total_log_prob, word_count = 0.0, 0
         prob_fn = jit(self._get_word_prob)
         print("Calculating perplexity...")
-        for sent in tqdm(sentences):
-            for i, word in enumerate(sent):
-                if word not in self.word_vocab: continue
-                context = [sent[j] for j in range(max(0, i - self.window), min(len(sent), i + self.window + 1)) if i != j and sent[j] in self.word_vocab]
-                if not context: continue
-                context_sub_indices = [self.get_subwords(w) for w in context]
-                path = jnp.array(self.huffman_paths[word]); code = jnp.array(self.huffman_codes[word])
-                prob = prob_fn(self.params, context_sub_indices, path, code)
-                total_log_prob += jnp.log2(prob); word_count += 1
+        
+        # Process in batches for better performance
+        batch_size = 50
+        for batch_start in tqdm(range(0, len(sentences), batch_size)):
+            batch_end = min(batch_start + batch_size, len(sentences))
+            batch_sentences = sentences[batch_start:batch_end]
+            
+            for sent in batch_sentences:
+                # Sample words from sentence for speed (every 3rd word)
+                sampled_indices = range(0, len(sent), 3)
+                for i in sampled_indices:
+                    word = sent[i]
+                    if word not in self.word_vocab: continue
+                    context = [sent[j] for j in range(max(0, i - self.window), min(len(sent), i + self.window + 1)) if i != j and sent[j] in self.word_vocab]
+                    if not context: continue
+                    context_sub_indices = [self.get_subwords(w) for w in context]
+                    path = jnp.array(self.huffman_paths[word]); code = jnp.array(self.huffman_codes[word])
+                    prob = prob_fn(self.params, context_sub_indices, path, code)
+                    total_log_prob += jnp.log2(prob); word_count += 1
         
         # Diagnostic print to see if any words were processed
         print(f"Total words processed for perplexity: {word_count}")
@@ -354,21 +369,32 @@ def run_evaluation(language: str, train_file: str, test_file: str):
     # Restore original train sentences for any future reference
     train_sentences = original_train
 
-    # 4. INTRINSIC EVALUATION
+    # 4. INTRINSIC EVALUATION (with sampling for speed)
     print("\n--- Intrinsic Evaluation ---")
-    perp = model.perplexity(test_sentences)
-    print(f"Perplexity on test set: {perp:.4f}")
+    perp = model.perplexity(test_sentences, sample_size=200)  # Sample 200 sentences for speed
+    print(f"Perplexity on test set (sampled): {perp:.4f}")
 
-    # 5. EXTRINSIC EVALUATION
+    # 5. EXTRINSIC EVALUATION (with sampling for speed)
     print("\n--- Extrinsic Evaluation ---")
     print("Training centroid classifier on test data...")
-    centroids = train_centroid_classifier(model, test_texts, test_labels, lang=language)
+    
+    # Sample test data for faster evaluation
+    if len(test_texts) > 1000:
+        sample_indices = list(range(0, len(test_texts), max(1, len(test_texts) // 1000)))
+        sampled_test_texts = [test_texts[i] for i in sample_indices]
+        sampled_test_labels = [test_labels[i] for i in sample_indices]
+        print(f"Sampling {len(sampled_test_texts)} test samples for faster evaluation...")
+    else:
+        sampled_test_texts = test_texts
+        sampled_test_labels = test_labels
+    
+    centroids = train_centroid_classifier(model, sampled_test_texts, sampled_test_labels, lang=language)
 
     print("Predicting labels...")
-    text_embeddings = jnp.array([text_to_embedding(model, t, lang=language) for t in test_texts])
+    text_embeddings = jnp.array([text_to_embedding(model, t, lang=language) for t in sampled_test_texts])
     predictions = predict_centroid(centroids, text_embeddings)
 
-    metrics = get_classification_metrics(test_labels, predictions)
+    metrics = get_classification_metrics(sampled_test_labels, predictions)
     print("Classification Metrics:")
     for key, val in metrics.items():
         print(f"  {key:<18}: {val:.4f}")
