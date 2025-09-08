@@ -506,7 +506,7 @@ def main():
             min_n=1,
             max_n=4,
             epochs=25,         # Fewer epochs for speed
-            batch_size=4096,   # Much larger batch size for GPU
+            batch_size=16384,   # Much larger batch size for GPU
             learning_rate=0.025 # Faster learning
         )
 
