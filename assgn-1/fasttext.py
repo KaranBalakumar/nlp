@@ -402,12 +402,12 @@ def tokenize_text(text):
     """Tokenize text exactly like in NLP_Assignment1.ipynb"""
     return re.findall(r"\b\w+\b", str(text).lower())
 
-def run_evaluation(language: str, train_file: str, test_file: str, vector_size=200, window=2, min_count=5, min_n=3, max_n=4, epochs=50, batch_size=256):
+def run_evaluation(language: str, train_file: str, test_file: str, vector_size=200, window=2, min_count=5, min_n=3, max_n=4, epochs=50, batch_size=256, learning_rate=0.025):
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
     
     # 1. Initialize a single model instance
     # Use extremely restrictive parameters like the notebook to avoid disk space issues
-    model = FastTextJAX(vector_size=vector_size, window=window, min_count=min_count, min_n=min_n, max_n=max_n, epochs=epochs, batch_size=batch_size)
+    model = FastTextJAX(vector_size=vector_size, window=window, min_count=min_count, min_n=min_n, max_n=max_n, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate)
 
     # 2. Load ALL data first
     with open(train_file, "r", encoding="utf-8") as f:
