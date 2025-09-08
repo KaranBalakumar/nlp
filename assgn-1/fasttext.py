@@ -246,9 +246,8 @@ class FastTextJAX:
         context_embeddings = []
         for ctx_word in context_words:
             if ctx_word in self.word_vocab:
-                ctx_idx = self.word_vocab[ctx_word]
                 ctx_subwords = self.get_subword_indices(ctx_word)
-                ctx_embed = jnp.mean(self.word_embeddings[ctx_subwords], axis=0)
+                ctx_embed = self.get_word_vector(self.params, jnp.array(ctx_subwords))
                 context_embeddings.append(ctx_embed)
         
         if not context_embeddings:
