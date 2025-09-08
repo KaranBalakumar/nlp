@@ -334,6 +334,21 @@ class FastTextJAX:
         print(f"Model loaded from {filepath}")
         return model
 
+def compute_pseudo_perplexity(model: FastTextJAX, sentences: list) -> float:
+    """Compute pseudo-perplexity by exponentiating the average loss over the dataset."""
+    # Use the same batching as training for fair comparison
+    losses = []
+    batch_generator = model._create_training_batches(sentences)
+    for batch in batch_generator:
+        loss = model.skipgram_loss(model.params, batch)
+        losses.append(float(loss))
+    if not losses:
+        return float('inf')
+    avg_loss = np.mean(losses)
+    pseudo_perp = np.exp(avg_loss)
+    print(f"Pseudo-perplexity (exp(avg_loss)): {pseudo_perp:.4f}")
+    return pseudo_perp
+
 # ==================== EXTRINSIC EVALUATION HELPERS ====================
 def text_to_embedding(model: FastTextJAX, text: str, lang='english') -> jnp.ndarray:
     words = model.preprocess_text(text, lang=lang)
@@ -432,6 +447,10 @@ def run_evaluation(language: str, train_file: str, test_file: str, vector_size=2
     
     # Restore original train sentences for any future reference
     train_sentences = original_train
+
+    # Compute and report pseudo-perplexity on test set
+    print("\n--- Pseudo-Perplexity (exp(avg_loss)) ---")
+    compute_pseudo_perplexity(model, test_sentences)
 
     # 4. INTRINSIC EVALUATION (with sampling for speed)
     print("\n--- Intrinsic Evaluation ---")
