@@ -75,6 +75,15 @@ class FastTextJAX:
                 subwords.add(padded_word[i:i+n])
         return [self.subword_vocab[sw] for sw in subwords if sw in self.subword_vocab]
 
+    def get_subword_indices(self, word: str) -> List[int]:
+        padded_word = f"<{word}>"
+        subwords = {word}
+        for n in range(self.min_n, self.max_n + 1):
+            if len(padded_word) < n: continue
+            for i in range(len(padded_word) - n + 1):
+                subwords.add(padded_word[i:i+n])
+        return [self.subword_vocab[sw] for sw in subwords if sw in self.subword_vocab]
+
     def build_vocab(self, sentences: List[List[str]]):
         print("Building vocabulary...")
         for sent in sentences: self.word_counts.update(sent)
