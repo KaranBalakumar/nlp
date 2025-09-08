@@ -488,41 +488,27 @@ def run_evaluation(language: str, train_file: str, test_file: str, vector_size=2
 
 def main():
     print(f"JAX is running on: {jax.default_backend()}")
-    import concurrent.futures
-    eval_jobs = [
+    for train_file, test_file in [
+        ('datasets/english/english_2500.txt', 'datasets/english/english_test.txt'),
         ('datasets/english/english_15000.txt', 'datasets/english/english_test.txt'),
         ('datasets/english/english_30000.txt', 'datasets/english/english_test.txt'),
         ('datasets/english/hindi_2500.txt', 'datasets/english/hindi_test.txt'),
         ('datasets/english/hindi_15000.txt', 'datasets/english/hindi_test.txt'),
         ('datasets/english/hindi_30000.txt', 'datasets/english/hindi_test.txt'),
-    ]
-    devices = jax.devices("gpu")
-    print(f"Found {len(devices)} GPU devices: {[d.id for d in devices]}")
-
-    def run_on_device(idx, train_file, test_file):
-        device = devices[idx % len(devices)]
-        print(f"Running evaluation {idx+1} on device: {device}")
-        with jax.default_device(device):
-            run_evaluation(
-                language='english',
-                train_file=train_file,
-                test_file=test_file,
-                vector_size=200,
-                window=2,
-                min_count=5,
-                min_n=1,
-                max_n=3,
-                epochs=25,
-                batch_size=4096,
-                learning_rate=0.05
-            )
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(devices)) as executor:
-        futures = []
-        for idx, (train_file, test_file) in enumerate(eval_jobs):
-            futures.append(executor.submit(run_on_device, idx, train_file, test_file))
-        for f in futures:
-            f.result()
+    ]:
+        run_evaluation(
+            language='english',
+            train_file=train_file,
+            test_file=test_file,
+            vector_size=200,
+            window=2,
+            min_count=5,
+            min_n=1,
+            max_n=4,
+            epochs=25,         # Fewer epochs for speed
+            batch_size=4096,   # Much larger batch size for GPU
+            learning_rate=0.025 # Faster learning
+        )
 
 if __name__ == "__main__":
     main()
