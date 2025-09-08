@@ -63,11 +63,8 @@ class FastTextJAX:
         self.params: Params = {}
 
     def preprocess_text(self, text: str, lang='english') -> List[str]:
-        if lang == 'english':
-            return re.findall(r'\b[a-zA-Z]+\b', text.lower())
-        elif lang == 'hindi':
-            return re.findall(r'[\u0900-\u097F]+', text)
-        return text.split()
+        """Use the same tokenization as NLP_Assignment1.ipynb"""
+        return tokenize_text(text)
 
     def get_subwords(self, word: str) -> List[int]:
         padded_word = f"<{word}>"
@@ -294,14 +291,36 @@ def get_classification_metrics(y_true: List[str], y_pred: List[str]):
 
 # ==================== MAIN EVALUATION SCRIPT ====================
 def load_classification_data(filepath: str):
-    texts, labels = [], []
+    """Load dataset exactly like in NLP_Assignment1.ipynb"""
+    data = []
+    current_label = None
+    current_text = []
+    
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
-            parts = line.strip().split("\t")
-            if len(parts) >= 2:
-                labels.append(parts[-1])
-                texts.append(" ".join(parts[:-1]))
-    return texts, labels
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("'") and line.count("','") >= 1:
+                if current_label is not None:
+                    data.append((current_label, " ".join(current_text)))
+                parts = line.split("','", 1)
+                current_label = parts[0].strip("'")
+                current_text = [parts[1].rstrip("'")] if len(parts) > 1 else []
+            else:
+                current_text.append(line)
+        if current_label is not None:
+            data.append((current_label, " ".join(current_text)))
+    
+    if data:
+        labels, texts = zip(*data)  # returns (labels, texts)
+        return list(texts), list(labels)
+    else:
+        return [], []
+
+def tokenize_text(text):
+    """Tokenize text exactly like in NLP_Assignment1.ipynb"""
+    return re.findall(r"\b\w+\b", str(text).lower())
 
 def run_evaluation(language: str, train_file: str, test_file: str):
     """Trains a FastText model and runs intrinsic/extrinsic evaluation."""
@@ -315,17 +334,25 @@ def run_evaluation(language: str, train_file: str, test_file: str):
     with open(train_file, "r", encoding="utf-8") as f:
         train_text = f.read()
     test_texts, test_labels = load_classification_data(test_file)
+    print(f"Loaded {len(test_texts)} test samples with {len(set(test_labels))} unique labels: {set(test_labels)}")
 
     # 3. Preprocess ALL data using the same model instance
     train_sentences = [model.preprocess_text(line, lang=language) for line in train_text.split("\n") if line.strip()]
     train_sentences = [s for s in train_sentences if len(s) > 1]
     test_sentences = [model.preprocess_text(text, lang=language) for text in test_texts]
 
-    # --- Build vocab from both train and test sentences, but train only on train_sentences ---
+    # --- Train model on training sentences (build_vocab will be called internally) ---
+    # Combine sentences so vocabulary includes all words, but train only on train_sentences
     all_sentences = train_sentences + test_sentences
-    model.build_vocab(all_sentences)
-    # Now train only on train_sentences
+    # Temporarily set the sentences for vocab building
+    original_train = train_sentences
+    train_sentences = all_sentences
+    
+    # Train the model (this will build vocab from all_sentences internally)
     model.train(train_sentences)
+    
+    # Restore original train sentences for any future reference
+    train_sentences = original_train
 
     # 4. INTRINSIC EVALUATION
     print("\n--- Intrinsic Evaluation ---")
