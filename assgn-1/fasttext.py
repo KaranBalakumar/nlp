@@ -327,8 +327,8 @@ def run_evaluation(language: str, train_file: str, test_file: str):
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
     
     # 1. Initialize a single model instance
-    # Set min_count=1 to ensure all test words can be included
-    model = FastTextJAX(vector_size=100, window=5, min_count=1, epochs=5, batch_size=512)
+    # Use extremely restrictive parameters like the notebook to avoid disk space issues
+    model = FastTextJAX(vector_size=50, window=2, min_count=5, min_n=3, max_n=4, epochs=5, batch_size=64)
 
     # 2. Load ALL data first
     with open(train_file, "r", encoding="utf-8") as f:
