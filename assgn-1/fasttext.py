@@ -18,7 +18,7 @@ import numpy as np
 import pickle
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
-# ==================== Huffman Tree (Unchanged) ====================
+# ==================== Huffman Tree ====================
 class HuffmanNode:
     def __init__(self, freq, word=None, left=None, right=None):
         self.freq = freq; self.word = word; self.left = left; self.right = right; self.index = None
@@ -418,6 +418,12 @@ def tokenize_text(text):
     return re.findall(r"\b\w+\b", str(text).lower())
 
 def run_evaluation(language: str, train_file: str, test_file: str, vector_size=200, window=2, min_count=5, min_n=3, max_n=4, epochs=50, batch_size=256, learning_rate=0.025):
+    # Save the model after evaluation
+    import os
+    def safe_name(path):
+        return os.path.splitext(os.path.basename(path))[0]
+    model_name = f"fasttext_{safe_name(train_file)}_{safe_name(test_file)}.pkl"
+    model.save(model_name)
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
     
     # 1. Initialize a single model instance
@@ -505,9 +511,9 @@ def main():
             min_count=5,
             min_n=1,
             max_n=4,
-            epochs=25,         # Fewer epochs for speed
-            batch_size=16384,   # Much larger batch size for GPU
-            learning_rate=0.025 # Faster learning
+            epochs=25,
+            batch_size=16384,
+            learning_rate=0.025
         )
 
 if __name__ == "__main__":
