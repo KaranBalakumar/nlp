@@ -47,8 +47,8 @@ def build_huffman_tree(word_counts: Dict[str, int]) -> Tuple[Dict[str, List[int]
 Params = Dict[str, jnp.ndarray]
 
 class FastTextJAX:
-    def __init__(self, vector_size=100, window=5, min_count=5, min_n=3, max_n=6,
-                 learning_rate=0.025, epochs=5, batch_size=256):
+    def __init__(self, vector_size=200, window=5, min_count=2, min_n=1, max_n=3,
+                 learning_rate=0.025, epochs=50, batch_size=256):
         self.vector_size = vector_size
         self.window = window
         self.min_count = min_count
@@ -402,13 +402,12 @@ def tokenize_text(text):
     """Tokenize text exactly like in NLP_Assignment1.ipynb"""
     return re.findall(r"\b\w+\b", str(text).lower())
 
-def run_evaluation(language: str, train_file: str, test_file: str):
-    """Trains a FastText model and runs intrinsic/extrinsic evaluation."""
+def run_evaluation(language: str, train_file: str, test_file: str, vector_size=200, window=2, min_count=5, min_n=3, max_n=4, epochs=50, batch_size=256):
     print(f"\n{'='*25}\n E V A L U A T I N G: {language.upper()} \n{'='*25}")
     
     # 1. Initialize a single model instance
     # Use extremely restrictive parameters like the notebook to avoid disk space issues
-    model = FastTextJAX(vector_size=50, window=2, min_count=5, min_n=3, max_n=4, epochs=5, batch_size=64)
+    model = FastTextJAX(vector_size=vector_size, window=window, min_count=min_count, min_n=min_n, max_n=max_n, epochs=epochs, batch_size=batch_size)
 
     # 2. Load ALL data first
     with open(train_file, "r", encoding="utf-8") as f:
@@ -473,16 +472,27 @@ def run_evaluation(language: str, train_file: str, test_file: str):
 
 def main():
     print(f"JAX is running on: {jax.default_backend()}")
-    run_evaluation(
-        language='english',
-        train_file='datasets/english/english_2500.txt',
-        test_file='datasets/english/english_test.txt'
-    )
-    run_evaluation(
-        language='hindi',
-        train_file='datasets/hindi/hindi_50k.txt',
-        test_file='datasets/hindi/hindi_test.txt'
-    )
+    for train_file, test_file in [
+        ('datasets/english/english_2500.txt', 'datasets/english/english_test.txt'),
+        ('datasets/english/english_15000.txt', 'datasets/english/english_test.txt'),
+        ('datasets/english/english_30000.txt', 'datasets/english/english_test.txt'),
+        ('datasets/english/hindi_2500.txt', 'datasets/english/hindi_test.txt'),
+        ('datasets/english/hindi_15000.txt', 'datasets/english/hindi_test.txt'),
+        ('datasets/english/hindi_30000.txt', 'datasets/english/hindi_test.txt'),
+    ]:
+        run_evaluation(
+            language='english',
+            train_file=train_file,
+            test_file=test_file,
+            vector_size=200,
+            window=2,
+            min_count=5,
+            min_n=3,
+            max_n=4,
+            epochs=50,         # Fewer epochs for speed
+            batch_size=4096,   # Much larger batch size for GPU
+            learning_rate=0.05 # Faster learning
+        )
 
 if __name__ == "__main__":
     main()
