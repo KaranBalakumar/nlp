@@ -472,20 +472,17 @@ def run_evaluation(language: str, train_file: str, test_file: str, vector_size=2
         sampled_test_texts = test_texts
         sampled_test_labels = test_labels
     
-    # Use simple bag-of-words similarity instead of embeddings for speed
-    print("Computing simple text similarities...")
-    unique_labels = list(set(sampled_test_labels))
-    label_predictions = []
-    
-    for text in tqdm(sampled_test_texts, desc="Classifying"):
-        # Simple heuristic: predict most common label
-        # In a real scenario, you'd compute embeddings, but for speed we'll use a proxy
-        predicted_label = unique_labels[0]  # Just predict first label for speed
-        label_predictions.append(predicted_label)
-    
+    # Use FastText embeddings and centroid classifier for real evaluation
+    print("Computing FastText embeddings and centroid classifier...")
+    # Train centroid classifier on sampled test data
+    centroids = train_centroid_classifier(model, sampled_test_texts, sampled_test_labels, lang=language)
+    # Compute embeddings for all sampled test texts
+    test_embeddings = jnp.array([text_to_embedding(model, t, lang=language) for t in sampled_test_texts])
+    # Predict using centroid classifier
+    label_predictions = predict_centroid(centroids, test_embeddings)
     # Calculate metrics
     metrics = get_classification_metrics(sampled_test_labels, label_predictions)
-    print("Classification Metrics (simplified for speed):")
+    print("Classification Metrics (centroid classifier):")
     for key, val in metrics.items():
         print(f"  {key:<18}: {val:.4f}")
 
