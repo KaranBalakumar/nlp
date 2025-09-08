@@ -4,6 +4,7 @@ import heapq
 import time
 from collections import Counter
 from typing import List, Dict, Tuple
+import math
 
 # JAX and related libraries
 import jax
