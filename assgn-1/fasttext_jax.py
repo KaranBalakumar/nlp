@@ -1,3 +1,85 @@
+# ==================== MAIN PIPELINE (inspired by fasttext.py) ====================
+import argparse
+from sklearn.svm import LinearSVC
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+
+def run_pipeline(train_file, test_file, vector_size=100, epochs=5, min_count=1, batch_size=1024, neg_samples=5, lr=0.05, key=0):
+    print(f"Loading data: {train_file} / {test_file}")
+    train_labels, train_texts = load_dataset(train_file)
+    test_labels, test_texts = load_dataset(test_file)
+    print(f"Loaded {len(train_texts)} train, {len(test_texts)} test samples.")
+
+    # Build vocab
+    vocab, subword_vocab = build_vocab(train_texts, min_count=min_count)
+    print(f"Vocab size: {len(vocab)}, Subword vocab: {len(subword_vocab)}")
+
+    # Init model
+    model = FastTextJAX(vocab, subword_vocab, vector_size=vector_size, key=key)
+
+    # Train
+    print("Training FastText (JAX)...")
+    train_fasttext_jax(model, train_texts, epochs=epochs, batch_size=batch_size, neg_samples=neg_samples, lr=lr, key=key)
+
+    # Intrinsic evaluation: pseudo-perplexity (cosine sim proxy)
+    print("\n--- Intrinsic Evaluation (pseudo-perplexity) ---")
+    def fasttext_perplexity(texts):
+        total_logprob = 0.0
+        total_words = 0
+        for sent in texts:
+            tokens = tokenize_text(sent)
+            if len(tokens) < 2:
+                continue
+            prev_emb = np.array(model.sentence_vector(tokens[:-1]))
+            for i in range(1, len(tokens)):
+                w_emb = np.array(model.get_word_vector(tokens[i]))
+                cos_sim = np.dot(prev_emb, w_emb) / (np.linalg.norm(prev_emb) * np.linalg.norm(w_emb) + 1e-8)
+                prob = (cos_sim + 1) / 2
+                prob = max(prob, 1e-8)
+                total_logprob += np.log2(prob)
+                total_words += 1
+        if total_words == 0:
+            return float('inf')
+        ppl = 2 ** (-total_logprob / total_words)
+        return ppl
+    ppl = fasttext_perplexity(test_texts)
+    print(f"FastText Embedding Perplexity: {ppl:.2f}")
+
+    # Extrinsic evaluation: classifier on embeddings
+    print("\n--- Extrinsic Evaluation (Classifier) ---")
+    X_train = get_sentence_embeddings(train_texts, model)
+    X_test = get_sentence_embeddings(test_texts, model)
+    clf = LinearSVC(class_weight="balanced", max_iter=2000)
+    clf.fit(X_train, train_labels)
+    y_pred = clf.predict(X_test)
+    acc = accuracy_score(test_labels, y_pred)
+    precision, recall, f1, _ = precision_recall_fscore_support(test_labels, y_pred, average="weighted", zero_division=0)
+    print(f"Classifier - Acc: {acc:.3f}, Prec: {precision:.3f}, Rec: {recall:.3f}, F1: {f1:.3f}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--train', type=str, default='datasets/english/english_2500.txt', help='Path to training file (default: datasets/english/english_2500.txt)')
+    parser.add_argument('--test', type=str, default='datasets/english/english_test.txt', help='Path to test file (default: datasets/english/english_test.txt)')
+    parser.add_argument('--vector_size', type=int, default=100, help='Embedding vector size')
+    parser.add_argument('--epochs', type=int, default=5, help='Number of training epochs')
+    parser.add_argument('--min_count', type=int, default=1, help='Minimum word count threshold')
+    parser.add_argument('--batch_size', type=int, default=1024, help='Batch size for training')
+    parser.add_argument('--neg_samples', type=int, default=5, help='Number of negative samples')
+    parser.add_argument('--lr', type=float, default=0.05, help='Learning rate')
+    parser.add_argument('--key', type=int, default=0, help='Random seed for JAX')
+    parser.add_argument('--window', type=int, default=5, help='Context window size (not used in current JAX code)')
+    parser.add_argument('--min_n', type=int, default=3, help='Min n-gram length for subwords (not used in current JAX code)')
+    parser.add_argument('--max_n', type=int, default=6, help='Max n-gram length for subwords (not used in current JAX code)')
+    parser.add_argument('--lang', type=str, default='english', choices=['english', 'hindi'], help='Dataset language (default: english)')
+    args = parser.parse_args()
+    # Set default paths for Hindi if requested
+    if args.lang == 'hindi':
+        args.train = 'datasets/hindi/hindi_50k.txt'
+        args.test = 'datasets/hindi/hindi_test.txt'
+    # Note: window, min_n, max_n are parsed for compatibility but not used in this minimal JAX pipeline
+    run_pipeline(
+        args.train, args.test, args.vector_size, args.epochs, args.min_count,
+        args.batch_size, args.neg_samples, args.lr, args.key
+    )
 # FastText (JAX version, with subwords, GPU support)
 import re
 import math
