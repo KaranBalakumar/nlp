@@ -496,12 +496,9 @@ def run_evaluation(language: str, train_file: str, test_file: str, vector_size=2
 def main():
     print(f"JAX is running on: {jax.default_backend()}")
     for train_file, test_file in [
-        ('datasets/english/english_2500.txt', 'datasets/english/english_test.txt'),
-        ('datasets/english/english_15000.txt', 'datasets/english/english_test.txt'),
-        ('datasets/english/english_30000.txt', 'datasets/english/english_test.txt'),
-        ('datasets/english/hindi_2500.txt', 'datasets/english/hindi_test.txt'),
-        ('datasets/english/hindi_15000.txt', 'datasets/english/hindi_test.txt'),
-        ('datasets/english/hindi_30000.txt', 'datasets/english/hindi_test.txt'),
+        ('datasets/hindi/hindi_2500.txt', 'datasets/hindi/hindi_test.txt'),
+        ('datasets/hindi/hindi_15000.txt', 'datasets/hindi/hindi_test.txt'),
+        ('datasets/hindi/hindi_30000.txt', 'datasets/hindi/hindi_test.txt'),
     ]:
         run_evaluation(
             language='english',
@@ -514,7 +511,7 @@ def main():
             max_n=4,
             epochs=25,
             batch_size=16384,
-            learning_rate=0.025
+            learning_rate=0.05
         )
 
 if __name__ == "__main__":
