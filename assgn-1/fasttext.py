@@ -501,7 +501,7 @@ def main():
         ('datasets/hindi/hindi_30000.txt', 'datasets/hindi/hindi_test.txt'),
     ]:
         run_evaluation(
-            language='english',
+            language='hindi',
             train_file=train_file,
             test_file=test_file,
             vector_size=200,
