@@ -10,7 +10,17 @@ from fasttext import (
 )
 
 def main():
-    print(f"JAX backend: {jax.default_backend()}")
+    # Force JAX to use GPU if available (same as fasttext.py)
+    try:
+        devices = jax.devices("gpu")
+        if devices:
+            device = devices[0]
+            print(f"JAX backend: gpu (using {device})")
+            jax.config.update("jax_default_device", device)
+        else:
+            print(f"JAX backend: {jax.default_backend()} (no GPU available)")
+    except:
+        print(f"JAX backend: {jax.default_backend()} (GPU backend failed)")
 
     parser = argparse.ArgumentParser(description="FastText Inference: Classify a sentence using a trained model and labeled dataset.")
     parser.add_argument('--model', type=str, required=True, help='Path to trained FastText model (.pkl)')
