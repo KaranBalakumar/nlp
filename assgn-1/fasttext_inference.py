@@ -1,7 +1,7 @@
 
 import argparse
 import jax.numpy as jnp
-from fasttext_jax import (
+from fasttext import (
     FastTextJAX,
     text_to_embedding,
     train_centroid_classifier,
