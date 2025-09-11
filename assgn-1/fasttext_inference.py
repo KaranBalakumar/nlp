@@ -10,25 +10,43 @@ from fasttext import (
 )
 
 def main():
-    parser = argparse.ArgumentParser(description="FastText Inference: Classify a sentence using a trained model and labeled dataset.")
-    parser.add_argument('--model', type=str, required=True, help='Path to trained FastText model (.pkl)')
-    parser.add_argument('--dataset', type=str, required=True, help='Path to labeled dataset (txt)')
-    args = parser.parse_args()
+    # Force JAX to use the first available GPU (CUDA) device if available
+    import jax
+    devices = jax.devices("gpu")
+    if devices:
+        device = devices[0]
+        print(f"Using GPU device: {device}")
+        from contextlib import contextmanager
+        @contextmanager
+        def jax_device_context(dev):
+            with jax.default_device(dev):
+                yield
+        device_ctx = jax_device_context(device)
+    else:
+        print("No GPU device found, using default (CPU)")
+        from contextlib import nullcontext
+        device_ctx = nullcontext()
 
-    # 1. Load trained FastText model
-    model = FastTextJAX.load(args.model)
+    with device_ctx:
+        parser = argparse.ArgumentParser(description="FastText Inference: Classify a sentence using a trained model and labeled dataset.")
+        parser.add_argument('--model', type=str, required=True, help='Path to trained FastText model (.pkl)')
+        parser.add_argument('--dataset', type=str, required=True, help='Path to labeled dataset (txt)')
+        args = parser.parse_args()
 
-    # 2. Load labeled dataset & train centroids
-    texts, labels = load_classification_data(args.dataset)
-    centroids = train_centroid_classifier(model, texts, labels)
+        # 1. Load trained FastText model
+        model = FastTextJAX.load(args.model)
 
-    # 3. Classify ONE new sentence
-    sentence = input("Enter a sentence to classify: ")
-    embedding = text_to_embedding(model, sentence)
-    prediction = predict_centroid(centroids, jnp.array([embedding]))[0]
+        # 2. Load labeled dataset & train centroids
+        texts, labels = load_classification_data(args.dataset)
+        centroids = train_centroid_classifier(model, texts, labels)
 
-    print(f"\nSentence: {sentence}")
-    print(f"Predicted Label: {prediction}")
+        # 3. Classify ONE new sentence
+        sentence = input("Enter a sentence to classify: ")
+        embedding = text_to_embedding(model, sentence)
+        prediction = predict_centroid(centroids, jnp.array([embedding]))[0]
+
+        print(f"\nSentence: {sentence}")
+        print(f"Predicted Label: {prediction}")
 
 if __name__ == "__main__":
     main()
